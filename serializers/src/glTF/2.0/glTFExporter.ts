@@ -657,6 +657,22 @@ export class _Exporter {
                 }
                 break;
             }
+            case VertexBuffer.MatricesIndicesKind: 
+            case VertexBuffer.MatricesIndicesExtraKind: {
+                for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
+                    index = k * stride;
+                    const vertexData = Vector4.FromArray(meshAttributeArray, index);
+                    vertexAttributes.push(vertexData.asArray());
+                }
+            }
+            case VertexBuffer.MatricesWeightsKind:
+            case VertexBuffer.MatricesWeightsExtraKind: {
+                for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
+                    index = k * stride;
+                    const vertexData = Vector4.FromArray(meshAttributeArray, index);
+                    vertexAttributes.push(vertexData.asArray());
+                }
+            }
             default: {
                 Tools.Warn("Unsupported Vertex Buffer Type: " + vertexBufferKind);
                 vertexAttributes = [];
@@ -1056,6 +1072,22 @@ export class _Exporter {
                 meshPrimitive.attributes.TEXCOORD_1 = this._accessors.length - 1;
                 break;
             }
+            case VertexBuffer.MatricesIndicesKind: {
+                meshPrimitive.attributes.JOINTS_0 = this._accessors.length - 1;
+                break;
+            }
+            case VertexBuffer.MatricesIndicesExtraKind: {
+                meshPrimitive.attributes.JOINTS_1 = this._accessors.length - 1;
+                break;
+            }
+            case VertexBuffer.MatricesWeightsKind: {
+                meshPrimitive.attributes.WEIGHTS_0 = this._accessors.length - 1;
+                break;
+            }
+            case VertexBuffer.MatricesWeightsExtraKind: {
+                meshPrimitive.attributes.WEIGHTS_1 = this._accessors.length - 1;
+                break;
+            }
             default: {
                 Tools.Warn("Unsupported Vertex Buffer Type: " + attributeKind);
             }
@@ -1087,6 +1119,10 @@ export class _Exporter {
             { kind: VertexBuffer.TangentKind, accessorType: AccessorType.VEC4, byteStride: 16 },
             { kind: VertexBuffer.UVKind, accessorType: AccessorType.VEC2, byteStride: 8 },
             { kind: VertexBuffer.UV2Kind, accessorType: AccessorType.VEC2, byteStride: 8 },
+            { kind: VertexBuffer.MatricesIndicesKind, accessorType: AccessorType.VEC4, byteStride: 4},
+            { kind: VertexBuffer.MatricesIndicesExtraKind, accessorType: AccessorType.VEC4, byteStride: 4},
+            { kind: VertexBuffer.MatricesWeightsKind, accessorType: AccessorType.VEC4, byteStride: 16},
+            { kind: VertexBuffer.MatricesWeightsExtraKind, accessorType: AccessorType.VEC4, byteStride: 16},
         ];
 
         if (bufferMesh) {

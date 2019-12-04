@@ -533,8 +533,8 @@ export class VertexBuffer {
                 return 2;
             case VertexBuffer.NormalKind:
             case VertexBuffer.PositionKind:
-                return 3;
             case VertexBuffer.ColorKind:
+                return 3;
             case VertexBuffer.MatricesIndicesKind:
             case VertexBuffer.MatricesIndicesExtraKind:
             case VertexBuffer.MatricesWeightsKind:

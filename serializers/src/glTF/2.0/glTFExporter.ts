@@ -41,6 +41,11 @@ interface _IVertexAttributeData {
     accessorType: AccessorType;
 
     /**
+     * Specifies the glTF Accessor Component Type (BYTE, UNSIGNED_BYTE, FLOAT, SHORT, INT, etc..)
+     */
+    accessorComponentType: AccessorComponentType;
+
+    /**
      * Specifies the BufferView index for the vertex attribute data
     */
     bufferViewIndex?: number;
@@ -585,8 +590,16 @@ export class _Exporter {
             }
 
             for (let component of vertex.asArray()) {
-                binaryWriter.setFloat32(component, byteOffset);
-                byteOffset += 4;
+                switch (vertexAttributeKind){
+                    case VertexBuffer.MatricesIndicesKind:
+                    case VertexBuffer.MatricesIndicesExtraKind:
+                        binaryWriter.setUInt16(component, byteOffset);
+                        byteOffset += 1;
+                        break;
+                    default:
+                        binaryWriter.setFloat32(component, byteOffset);
+                        byteOffset += 4;
+                }
             }
         }
     }
@@ -599,9 +612,7 @@ export class _Exporter {
      * @param binaryWriter The buffer to write the binary data to
      * @param indices Used to specify the order of the vertex data
      */
-    public writeAttributeData(vertexBufferKind: string, meshAttributeArray: FloatArray, byteStride: number, binaryWriter: _BinaryWriter) {
-        const stride = byteStride / 4;
-        let vertexAttributes: number[][] = [];
+    public writeAttributeData(vertexBufferKind: string, meshAttributeArray: FloatArray, stride: number, binaryWriter: _BinaryWriter) {
         let index: number;
 
         switch (vertexBufferKind) {
@@ -612,7 +623,9 @@ export class _Exporter {
                     if (this._convertToRightHandedSystem) {
                         _GLTFUtilities._GetRightHandedPositionVector3FromRef(vertexData);
                     }
-                    vertexAttributes.push(vertexData.asArray());
+                    for (let component of vertexData.asArray()){
+                        binaryWriter.setFloat32(component);
+                    }
                 }
                 break;
             }
@@ -624,7 +637,9 @@ export class _Exporter {
                         _GLTFUtilities._GetRightHandedNormalVector3FromRef(vertexData);
                     }
                     vertexData.normalize();
-                    vertexAttributes.push(vertexData.asArray());
+                    for (let component of vertexData.asArray()){
+                        binaryWriter.setFloat32(component);
+                    }
                 }
                 break;
             }
@@ -636,8 +651,9 @@ export class _Exporter {
                         _GLTFUtilities._GetRightHandedVector4FromRef(vertexData);
                     }
                     _GLTFUtilities._NormalizeTangentFromRef(vertexData);
-
-                    vertexAttributes.push(vertexData.asArray());
+                    for (let component of vertexData.asArray()){
+                        binaryWriter.setFloat32(component);
+                    }
                 }
                 break;
             }
@@ -645,7 +661,9 @@ export class _Exporter {
                 for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
                     index = k * stride;
                     const vertexData = stride === 3 ? Vector3.FromArray(meshAttributeArray, index) : Vector4.FromArray(meshAttributeArray, index);
-                    vertexAttributes.push(vertexData.asArray());
+                    for (let component of vertexData.asArray()){
+                        binaryWriter.setFloat32(component);
+                    }
                 }
                 break;
             }
@@ -653,7 +671,10 @@ export class _Exporter {
             case VertexBuffer.UV2Kind: {
                 for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
                     index = k * stride;
-                    vertexAttributes.push(this._convertToRightHandedSystem ? [meshAttributeArray[index], meshAttributeArray[index + 1]] : [meshAttributeArray[index], meshAttributeArray[index + 1]]);
+                    let vertexData = this._convertToRightHandedSystem ? [meshAttributeArray[index], meshAttributeArray[index + 1]] : [meshAttributeArray[index], meshAttributeArray[index + 1]];
+                    for (let component of vertexData){
+                        binaryWriter.setFloat32(component);
+                    }
                 }
                 break;
             }
@@ -662,28 +683,30 @@ export class _Exporter {
                 for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
                     index = k * stride;
                     const vertexData = Vector4.FromArray(meshAttributeArray, index);
-                    vertexAttributes.push(vertexData.asArray());
+                    for (let component of vertexData.asArray()){
+                        binaryWriter.setUInt16(component);
+                    }
                 }
+                break;
             }
             case VertexBuffer.MatricesWeightsKind:
             case VertexBuffer.MatricesWeightsExtraKind: {
                 for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
                     index = k * stride;
                     const vertexData = Vector4.FromArray(meshAttributeArray, index);
-                    vertexAttributes.push(vertexData.asArray());
+                    for (let component of vertexData.asArray()){
+                        binaryWriter.setFloat32(component);
+                    }
                 }
+                break;
             }
             default: {
                 Tools.Warn("Unsupported Vertex Buffer Type: " + vertexBufferKind);
-                vertexAttributes = [];
-            }
-        }
-        for (let vertexAttribute of vertexAttributes) {
-            for (let component of vertexAttribute) {
-                binaryWriter.setFloat32(component);
             }
         }
     }
+
+
 
     /**
      * Generates glTF json data
@@ -962,10 +985,11 @@ export class _Exporter {
     /**
      * Creates a bufferview based on the vertices type for the Babylon mesh
      * @param kind Indicates the type of vertices data
+     * @param componentType Indicates the numerical type used to store the data
      * @param babylonTransformNode The Babylon mesh to get the vertices data from
      * @param binaryWriter The buffer to write the bufferview data to
      */
-    private createBufferViewKind(kind: string, babylonTransformNode: TransformNode, binaryWriter: _BinaryWriter, byteStride: number) {
+    private createBufferViewKind(kind: string, componentType: number, babylonTransformNode: TransformNode, binaryWriter: _BinaryWriter, stride: number) {
         const bufferMesh = babylonTransformNode instanceof Mesh ?
             babylonTransformNode as Mesh : babylonTransformNode instanceof InstancedMesh ?
                 (babylonTransformNode as InstancedMesh).sourceMesh : null;
@@ -974,14 +998,16 @@ export class _Exporter {
             const vertexData = bufferMesh.getVerticesData(kind);
 
             if (vertexData) {
-                const byteLength = vertexData.length * 4;
+                const typeByteLength = VertexBuffer.GetTypeByteLength(componentType);
+                const byteLength = typeByteLength * vertexData.length;
+                const byteStride = typeByteLength * stride;
                 const bufferView = _GLTFUtilities._CreateBufferView(0, binaryWriter.getByteOffset(), byteLength, byteStride, kind + " - " + bufferMesh.name);
                 this._bufferViews.push(bufferView);
 
                 this.writeAttributeData(
                     kind,
                     vertexData,
-                    byteStride,
+                    stride,
                     binaryWriter
                 );
             }
@@ -1113,16 +1139,16 @@ export class _Exporter {
             bufferMesh = (babylonTransformNode as InstancedMesh).sourceMesh;
         }
         const attributeData: _IVertexAttributeData[] = [
-            { kind: VertexBuffer.PositionKind, accessorType: AccessorType.VEC3, byteStride: 12 },
-            { kind: VertexBuffer.NormalKind, accessorType: AccessorType.VEC3, byteStride: 12 },
-            { kind: VertexBuffer.ColorKind, accessorType: AccessorType.VEC4, byteStride: 16 },
-            { kind: VertexBuffer.TangentKind, accessorType: AccessorType.VEC4, byteStride: 16 },
-            { kind: VertexBuffer.UVKind, accessorType: AccessorType.VEC2, byteStride: 8 },
-            { kind: VertexBuffer.UV2Kind, accessorType: AccessorType.VEC2, byteStride: 8 },
-            { kind: VertexBuffer.MatricesIndicesKind, accessorType: AccessorType.VEC4, byteStride: 4},
-            { kind: VertexBuffer.MatricesIndicesExtraKind, accessorType: AccessorType.VEC4, byteStride: 4},
-            { kind: VertexBuffer.MatricesWeightsKind, accessorType: AccessorType.VEC4, byteStride: 16},
-            { kind: VertexBuffer.MatricesWeightsExtraKind, accessorType: AccessorType.VEC4, byteStride: 16},
+            { kind: VertexBuffer.PositionKind, accessorType: AccessorType.VEC3, accessorComponentType: AccessorComponentType.FLOAT },
+            { kind: VertexBuffer.NormalKind, accessorType: AccessorType.VEC3, accessorComponentType: AccessorComponentType.FLOAT },
+            { kind: VertexBuffer.ColorKind, accessorType: AccessorType.VEC3, accessorComponentType: AccessorComponentType.FLOAT },
+            { kind: VertexBuffer.TangentKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.FLOAT },
+            { kind: VertexBuffer.UVKind, accessorType: AccessorType.VEC2, accessorComponentType: AccessorComponentType.FLOAT },
+            { kind: VertexBuffer.UV2Kind, accessorType: AccessorType.VEC2, accessorComponentType: AccessorComponentType.FLOAT },
+            { kind: VertexBuffer.MatricesIndicesKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.UNSIGNED_SHORT },
+            { kind: VertexBuffer.MatricesIndicesExtraKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.UNSIGNED_SHORT },
+            { kind: VertexBuffer.MatricesWeightsKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.FLOAT },
+            { kind: VertexBuffer.MatricesWeightsExtraKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.FLOAT },
         ];
 
         if (bufferMesh) {
@@ -1133,14 +1159,9 @@ export class _Exporter {
             // For each BabylonMesh, create bufferviews for each 'kind'
             for (const attribute of attributeData) {
                 const attributeKind = attribute.kind;
+                const accessorComponentType = attribute.accessorComponentType
                 if (bufferMesh.isVerticesDataPresent(attributeKind)) {
-                    const vertexBuffer = this.getVertexBufferFromMesh(attributeKind, bufferMesh);
-                    attribute.byteStride = vertexBuffer ? vertexBuffer.getSize() * 4 : VertexBuffer.DeduceStride(attributeKind) * 4;
-                    if (attribute.byteStride === 12) {
-                        attribute.accessorType = AccessorType.VEC3;
-                    }
-
-                    this.createBufferViewKind(attributeKind, babylonTransformNode, binaryWriter, attribute.byteStride);
+                    this.createBufferViewKind(attributeKind, accessorComponentType, babylonTransformNode, binaryWriter, VertexBuffer.DeduceStride(attributeKind));
                     attribute.bufferViewIndex = this._bufferViews.length - 1;
                     vertexAttributeBufferViews[attributeKind] = attribute.bufferViewIndex;
                 }
@@ -1215,7 +1236,7 @@ export class _Exporter {
                                     if (attributeKind == VertexBuffer.PositionKind) {
                                         minMax = _GLTFUtilities._CalculateMinMaxPositions(vertexData, 0, vertexData.length / stride, this._convertToRightHandedSystem);
                                     }
-                                    const accessor = _GLTFUtilities._CreateAccessor(bufferViewIndex, attributeKind + " - " + babylonTransformNode.name, attribute.accessorType, AccessorComponentType.FLOAT, vertexData.length / stride, 0, minMax.min, minMax.max);
+                                    const accessor = _GLTFUtilities._CreateAccessor(bufferViewIndex, attributeKind + " - " + babylonTransformNode.name, attribute.accessorType, attribute.accessorComponentType, vertexData.length / stride, 0, minMax.min, minMax.max);
                                     this._accessors.push(accessor);
                                     this.setAttributeKind(meshPrimitive, attributeKind);
                                 }
@@ -1288,7 +1309,7 @@ export class _Exporter {
 
         return this._glTFMaterialExporter._convertMaterialsToGLTFAsync(babylonScene.materials, ImageMimeType.PNG, true).then(() => {
             return this.createNodeMapAndAnimationsAsync(babylonScene, nodes, binaryWriter).then((nodeMap) => {
-                return this.createSkinsAsync(babylonScene, nodeMap, binaryWriter).then(() => {
+                return this.createSkinsAsync(babylonScene, nodeMap, binaryWriter).then((skinMap) => {
                     return this.createMorphTargetsAsync(babylonScene, nodeMap, binaryWriter).then(() => {
                         this._nodeMap = nodeMap;
 
@@ -1328,6 +1349,17 @@ export class _Exporter {
                                     }
                                 }
 
+                                if (babylonNode instanceof Mesh){
+                                    let babylonMesh : Mesh = babylonNode;
+                                    if (babylonMesh.skeleton){
+                                        glTFNode.skin = skinMap[babylonMesh.skeleton.uniqueId];
+                                    }
+
+                                    if (babylonMesh.morphTargetManager){
+                                        /* do the same thing */
+                                    }
+                                }
+
                                 directDescendents = babylonNode.getDescendants(true);
                                 if (!glTFNode.children && directDescendents && directDescendents.length) {
                                     const children: number[] = [];
@@ -1358,14 +1390,14 @@ export class _Exporter {
      * @param binaryWriter Buffer to write binary data to
      * @returns Node mapping of unique id to index
      */
-    private createSkinsAsync(babylonScene: Scene, nodeMap: { [key: number]: number }, binaryWriter: _BinaryWriter): Promise<void> {
+    private createSkinsAsync(babylonScene: Scene, nodeMap: { [key: number]: number }, binaryWriter: _BinaryWriter): Promise<{ [key: number]: number }> {
         let promiseChain = Promise.resolve();
+        const skinMap: { [key: number]: number } = {};
         for (let skeleton of babylonScene.skeletons) {
             // create skin
             const skin: ISkin = { joints: []};
             let inverseBindMatrices = [];
             skin.skeleton = skeleton.overrideMesh === null ? undefined : nodeMap[skeleton.overrideMesh.uniqueId];
-
             for (let bone of skeleton.bones) {
                 let transformNode = bone.getTransformNode();
                 if (transformNode) {
@@ -1378,18 +1410,23 @@ export class _Exporter {
             let byteLength = inverseBindMatrices.length * byteStride;
             let bufferViewOffset = binaryWriter.getByteOffset();
             let bufferView = _GLTFUtilities._CreateBufferView(0, bufferViewOffset, byteLength, byteStride, "InverseBindMatrices" + " - " + skeleton.name);
-            let bufferViewIndex = this._bufferViews.push(bufferView) - 1;
+            this._bufferViews.push(bufferView);
+            let bufferViewIndex =  this._bufferViews.length - 1;
             let bindMatrixAccessor = _GLTFUtilities._CreateAccessor(bufferViewIndex, "InverseBindMatrices" + " - " + skeleton.name, AccessorType.MAT4, AccessorComponentType.FLOAT, inverseBindMatrices.length, null, null, null);
             let inverseBindAccessorIndex = this._accessors.push(bindMatrixAccessor) - 1;
             skin.inverseBindMatrices = inverseBindAccessorIndex;
             this._skins.push(skin);
+            skinMap[skeleton.uniqueId] = this._skins.length - 1;
+
             inverseBindMatrices.forEach((mat) => {
                 mat.forEach((cell) => {
                     binaryWriter.setFloat32(cell);
                 });
             });
         }
-        return promiseChain.then(() => { /* do nothing */ });
+        return promiseChain.then(() => { 
+            return skinMap;
+        });
     }
 
     /**
@@ -1586,6 +1623,28 @@ export class _BinaryWriter {
     }
 
     /**
+     * Stores an UInt16 in the array buffer
+     * @param entry
+     * @param byteOffset If defined, specifies where to set the value as an offset.
+     */
+    public setUInt16(entry: number, byteOffset?: number) {
+        if (byteOffset != null) {
+            if (byteOffset < this._byteOffset) {
+                this._dataView.setUint16(byteOffset, entry);
+            }
+            else {
+                Tools.Error('BinaryWriter: byteoffset is greater than the current binary buffer length!');
+            }
+        }
+        else {
+            if (this._byteOffset + 2 > this._arrayBuffer.byteLength) {
+                this.resizeBuffer(this._arrayBuffer.byteLength * 2);
+            }
+            this._dataView.setUint16(this._byteOffset++, entry);
+        }
+    }
+
+    /**
      * Gets an UInt32 in the array buffer
      * @param entry
      * @param byteOffset If defined, specifies where to set the value as an offset.
@@ -1667,6 +1726,7 @@ export class _BinaryWriter {
         this._dataView.setFloat32(this._byteOffset, entry, true);
         this._byteOffset += 4;
     }
+    
     /**
      * Stores an UInt32 in the array buffer
      * @param entry

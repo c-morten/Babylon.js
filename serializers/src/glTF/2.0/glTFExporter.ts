@@ -684,7 +684,7 @@ export class _Exporter {
                     index = k * stride;
                     const vertexData = Vector4.FromArray(meshAttributeArray, index);
                     for (let component of vertexData.asArray()){
-                        binaryWriter.setUInt16(component);
+                        binaryWriter.setUInt16(Math.trunc(component));
                     }
                 }
                 break;
@@ -1432,12 +1432,16 @@ export class _Exporter {
     /**
      * Creates a glTF morph target from a Babylon skeleton
      * @param babylonScene Babylon Scene
-     * @param nodes Babylon transform nodes
+     * @param nodeMap Babylon transform nodes to glTF node mapping
      * @param binaryWriter Buffer to write binary data to
      * @returns Node mapping of unique id to index
      */
     private createMorphTargetsAsync(babylonScene: Scene, nodeMap: { [key: number]: number }, binaryWriter: _BinaryWriter): Promise<void> {
-        return Promise.resolve();
+        let promiseChain = Promise.resolve();
+
+        return promiseChain.then(() => {
+            /* do nothing */
+        });
     }
 
     /**

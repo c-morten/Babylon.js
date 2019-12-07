@@ -1,7 +1,7 @@
 import { AccessorType, IBufferView, IAccessor, INode, IScene, IMesh, IMaterial, ITexture, IImage, ISampler, ISkin, IAnimation, ImageMimeType, IMeshPrimitive, IBuffer, IGLTF, MeshPrimitiveMode, AccessorComponentType } from "babylonjs-gltf2interface";
 
 import { FloatArray, Nullable, IndicesArray } from "babylonjs/types";
-import { Viewport, Color3, Vector2, Vector3, Vector4, Quaternion } from "babylonjs/Maths/math";
+import { Viewport, Color3, Vector2, Vector3, Vector4, Quaternion, Matrix } from "babylonjs/Maths/math";
 import { Tools } from "babylonjs/Misc/tools";
 import { VertexBuffer } from "babylonjs/Meshes/buffer";
 import { Node } from "babylonjs/node";
@@ -593,7 +593,7 @@ export class _Exporter {
                 switch (vertexAttributeKind){
                     case VertexBuffer.MatricesIndicesKind:
                     case VertexBuffer.MatricesIndicesExtraKind:
-                        binaryWriter.setUInt16(component, byteOffset);
+                        binaryWriter.setUInt8(component, byteOffset);
                         byteOffset += 1;
                         break;
                     default:
@@ -684,7 +684,7 @@ export class _Exporter {
                     index = k * stride;
                     const vertexData = Vector4.FromArray(meshAttributeArray, index);
                     for (let component of vertexData.asArray()){
-                        binaryWriter.setUInt16(Math.trunc(component));
+                        binaryWriter.setUInt8(component);
                     }
                 }
                 break;
@@ -1145,8 +1145,8 @@ export class _Exporter {
             { kind: VertexBuffer.TangentKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.FLOAT },
             { kind: VertexBuffer.UVKind, accessorType: AccessorType.VEC2, accessorComponentType: AccessorComponentType.FLOAT },
             { kind: VertexBuffer.UV2Kind, accessorType: AccessorType.VEC2, accessorComponentType: AccessorComponentType.FLOAT },
-            { kind: VertexBuffer.MatricesIndicesKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.UNSIGNED_SHORT },
-            { kind: VertexBuffer.MatricesIndicesExtraKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.UNSIGNED_SHORT },
+            { kind: VertexBuffer.MatricesIndicesKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.UNSIGNED_BYTE },
+            { kind: VertexBuffer.MatricesIndicesExtraKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.UNSIGNED_BYTE },
             { kind: VertexBuffer.MatricesWeightsKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.FLOAT },
             { kind: VertexBuffer.MatricesWeightsExtraKind, accessorType: AccessorType.VEC4, accessorComponentType: AccessorComponentType.FLOAT },
         ];
@@ -1396,13 +1396,17 @@ export class _Exporter {
         for (let skeleton of babylonScene.skeletons) {
             // create skin
             const skin: ISkin = { joints: []};
-            let inverseBindMatrices = [];
+            let inverseBindMatrices : Matrix[] = [];
             skin.skeleton = skeleton.overrideMesh === null ? undefined : nodeMap[skeleton.overrideMesh.uniqueId];
             for (let bone of skeleton.bones) {
                 let transformNode = bone.getTransformNode();
                 if (transformNode) {
+                    let boneMatrix = bone.getInvertedAbsoluteTransform();
+                    if (this._convertToRightHandedSystem){
+                        boneMatrix.toggleModelMatrixHandInPlace();
+                    }
+                    inverseBindMatrices.push(boneMatrix);
                     skin.joints.push(nodeMap[transformNode.uniqueId]);
-                    inverseBindMatrices.push(bone.getRestPose().invert().m);
                 }
             }
             // create buffer view for inverse bind matrices
@@ -1419,7 +1423,7 @@ export class _Exporter {
             skinMap[skeleton.uniqueId] = this._skins.length - 1;
 
             inverseBindMatrices.forEach((mat) => {
-                mat.forEach((cell) => {
+                mat.m.forEach((cell) => {
                     binaryWriter.setFloat32(cell);
                 });
             });
@@ -1623,28 +1627,6 @@ export class _BinaryWriter {
                 this.resizeBuffer(this._arrayBuffer.byteLength * 2);
             }
             this._dataView.setUint8(this._byteOffset++, entry);
-        }
-    }
-
-    /**
-     * Stores an UInt16 in the array buffer
-     * @param entry
-     * @param byteOffset If defined, specifies where to set the value as an offset.
-     */
-    public setUInt16(entry: number, byteOffset?: number) {
-        if (byteOffset != null) {
-            if (byteOffset < this._byteOffset) {
-                this._dataView.setUint16(byteOffset, entry);
-            }
-            else {
-                Tools.Error('BinaryWriter: byteoffset is greater than the current binary buffer length!');
-            }
-        }
-        else {
-            if (this._byteOffset + 2 > this._arrayBuffer.byteLength) {
-                this.resizeBuffer(this._arrayBuffer.byteLength * 2);
-            }
-            this._dataView.setUint16(this._byteOffset++, entry);
         }
     }
 

@@ -14,7 +14,7 @@ import { Effect, IEffectCreationOptions } from "./effect";
 import { BaseTexture } from "../Materials/Textures/baseTexture";
 import { WebVRFreeCamera } from '../Cameras/VR/webVRCamera';
 import { MaterialDefines } from "./materialDefines";
-import { Color3, TmpColors } from '../Maths/math.color';
+import { Color3 } from '../Maths/math.color';
 import { EffectFallbacks } from './effectFallbacks';
 
 /**
@@ -123,11 +123,15 @@ export class MaterialHelper {
         let useClipPlane2 = false;
         let useClipPlane3 = false;
         let useClipPlane4 = false;
+        let useClipPlane5 = false;
+        let useClipPlane6 = false;
 
         useClipPlane1 = useClipPlane == null ? (scene.clipPlane !== undefined && scene.clipPlane !== null) : useClipPlane;
         useClipPlane2 = useClipPlane == null ? (scene.clipPlane2 !== undefined && scene.clipPlane2 !== null) : useClipPlane;
         useClipPlane3 = useClipPlane == null ? (scene.clipPlane3 !== undefined && scene.clipPlane3 !== null) : useClipPlane;
         useClipPlane4 = useClipPlane == null ? (scene.clipPlane4 !== undefined && scene.clipPlane4 !== null) : useClipPlane;
+        useClipPlane5 = useClipPlane == null ? (scene.clipPlane5 !== undefined && scene.clipPlane5 !== null) : useClipPlane;
+        useClipPlane6 = useClipPlane == null ? (scene.clipPlane6 !== undefined && scene.clipPlane6 !== null) : useClipPlane;
 
         if (defines["CLIPPLANE"] !== useClipPlane1) {
             defines["CLIPPLANE"] = useClipPlane1;
@@ -146,6 +150,16 @@ export class MaterialHelper {
 
         if (defines["CLIPPLANE4"] !== useClipPlane4) {
             defines["CLIPPLANE4"] = useClipPlane4;
+            changed = true;
+        }
+
+        if (defines["CLIPPLANE5"] !== useClipPlane5) {
+            defines["CLIPPLANE5"] = useClipPlane5;
+            changed = true;
+        }
+
+        if (defines["CLIPPLANE6"] !== useClipPlane6) {
+            defines["CLIPPLANE6"] = useClipPlane6;
             changed = true;
         }
 
@@ -665,43 +679,7 @@ export class MaterialHelper {
      * @param rebuildInParallel Specifies whether the shader is rebuilding in parallel
      */
     public static BindLight(light: Light, lightIndex: number, scene: Scene, effect: Effect, useSpecular: boolean, usePhysicalLightFalloff = false, rebuildInParallel = false): void {
-        let iAsString = lightIndex.toString();
-        let needUpdate = false;
-
-        if (rebuildInParallel && light._uniformBuffer._alreadyBound) {
-            return;
-        }
-
-        light._uniformBuffer.bindToEffect(effect, "Light" + iAsString);
-
-        if (light._renderId !== scene.getRenderId() || !light._uniformBuffer.useUbo) {
-            light._renderId = scene.getRenderId();
-
-            let scaledIntensity = light.getScaledIntensity();
-
-            MaterialHelper.BindLightProperties(light, effect, lightIndex);
-
-            light.diffuse.scaleToRef(scaledIntensity, TmpColors.Color3[0]);
-            light._uniformBuffer.updateColor4("vLightDiffuse", TmpColors.Color3[0], usePhysicalLightFalloff ? light.radius : light.range, iAsString);
-            if (useSpecular) {
-                light.specular.scaleToRef(scaledIntensity, TmpColors.Color3[1]);
-                light._uniformBuffer.updateColor3("vLightSpecular", TmpColors.Color3[1], iAsString);
-            }
-            needUpdate = true;
-        }
-
-        // Shadows
-        if (scene.shadowsEnabled && light.shadowEnabled) {
-            var shadowGenerator = light.getShadowGenerator();
-            if (shadowGenerator) {
-                shadowGenerator.bindShadowLight(iAsString, effect);
-                needUpdate = true;
-            }
-        }
-
-        if (needUpdate) {
-            light._uniformBuffer.update();
-        }
+        light.bindLight(lightIndex, scene, effect, useSpecular, usePhysicalLightFalloff, rebuildInParallel);
     }
 
     /**
@@ -823,6 +801,14 @@ export class MaterialHelper {
         if (scene.clipPlane4) {
             let clipPlane = scene.clipPlane4;
             effect.setFloat4("vClipPlane4", clipPlane.normal.x, clipPlane.normal.y, clipPlane.normal.z, clipPlane.d);
+        }
+        if (scene.clipPlane5) {
+            let clipPlane = scene.clipPlane5;
+            effect.setFloat4("vClipPlane5", clipPlane.normal.x, clipPlane.normal.y, clipPlane.normal.z, clipPlane.d);
+        }
+        if (scene.clipPlane6) {
+            let clipPlane = scene.clipPlane6;
+            effect.setFloat4("vClipPlane6", clipPlane.normal.x, clipPlane.normal.y, clipPlane.normal.z, clipPlane.d);
         }
     }
 }

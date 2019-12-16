@@ -1,4 +1,4 @@
-import { AccessorType, IBufferView, IAccessor, INode, IScene, IMesh, IMaterial, ITexture, IImage, ISampler, ISkin, IAnimation, ImageMimeType, IMeshPrimitive, IBuffer, IGLTF, MeshPrimitiveMode, AccessorComponentType } from "babylonjs-gltf2interface";
+import { AccessorType, IBufferView, IAccessor, INode, IScene, IMesh, IMaterial, ITexture, IImage, ISampler, ISkin, IAnimation, ImageMimeType, IMeshPrimitive, IBuffer, IGLTF, MeshPrimitiveMode, AccessorComponentType, ITextureInfo } from "babylonjs-gltf2interface";
 
 import { FloatArray, Nullable, IndicesArray } from "babylonjs/types";
 import { Viewport, Color3, Vector2, Vector3, Vector4, Quaternion, Matrix } from "babylonjs/Maths/math";
@@ -152,43 +152,67 @@ export class _Exporter {
     private static _ExtensionNames = new Array<string>();
     private static _ExtensionFactories: { [name: string]: (exporter: _Exporter) => IGLTFExporterExtensionV2 } = {};
 
-    private _applyExtensions<T>(property: any, actionAsync: (extension: IGLTFExporterExtensionV2) => Nullable<T> | undefined): Nullable<T> {
-        for (const name of _Exporter._ExtensionNames) {
-            const extension = this._extensions[name];
-            if (extension.enabled) {
-                const exporterProperty = property as any;
-                exporterProperty._activeLoaderExtensions = exporterProperty._activeLoaderExtensions || {};
-                const activeLoaderExtensions = exporterProperty._activeLoaderExtensions;
-                if (!activeLoaderExtensions[name]) {
-                    activeLoaderExtensions[name] = true;
+    private _applyExtension<T>(node: T, extensions: IGLTFExporterExtensionV2[], index: number, actionAsync: (extension: IGLTFExporterExtensionV2, node: T) => Promise<Nullable<T>> | undefined): Promise<Nullable<T>> {
+        if (index >= extensions.length) {
+            return Promise.resolve(node);
+        }
 
-                    try {
-                        const result = actionAsync(extension);
-                        if (result) {
-                            return result;
-                        }
-                    }
-                    finally {
-                        delete activeLoaderExtensions[name];
-                        delete exporterProperty._activeLoaderExtensions;
-                    }
-                }
+        let currentPromise = actionAsync(extensions[index], node);
+
+        if (!currentPromise) {
+            return this._applyExtension(node, extensions, index + 1, actionAsync);
+        }
+
+        return currentPromise.then((newNode) => this._applyExtension(newNode || node, extensions, index + 1, actionAsync));
+    }
+
+    private _applyExtensions<T>(node: T, actionAsync: (extension: IGLTFExporterExtensionV2, node: T) => Promise<Nullable<T>> | undefined): Promise<Nullable<T>> {
+        var extensions: IGLTFExporterExtensionV2[] = [];
+        for (const name of _Exporter._ExtensionNames) {
+            extensions.push(this._extensions[name]);
+        }
+
+        return this._applyExtension(node, extensions, 0, actionAsync);
+    }
+
+    public _extensionsPreExportTextureAsync(context: string, babylonTexture: Texture, mimeType: ImageMimeType): Promise<Nullable<BaseTexture>> {
+        return this._applyExtensions(babylonTexture, (extension, node) => extension.preExportTextureAsync && extension.preExportTextureAsync(context, node, mimeType));
+    }
+
+    public _extensionsPostExportMeshPrimitiveAsync(context: string, meshPrimitive: IMeshPrimitive, babylonSubMesh: SubMesh, binaryWriter: _BinaryWriter): Promise<Nullable<IMeshPrimitive>> {
+        return this._applyExtensions(meshPrimitive, (extension, node) => extension.postExportMeshPrimitiveAsync && extension.postExportMeshPrimitiveAsync(context, node, babylonSubMesh, binaryWriter));
+    }
+
+    public _extensionsPostExportNodeAsync(context: string, node: INode, babylonNode: Node): Promise<Nullable<INode>> {
+        return this._applyExtensions(node, (extension, node) => extension.postExportNodeAsync && extension.postExportNodeAsync(context, node, babylonNode));
+    }
+
+    public _extensionsPostExportMaterialAsync(context: string, material: IMaterial, babylonMaterial: Material): Promise<Nullable<IMaterial>> {
+        return this._applyExtensions(material, (extension, node) => extension.postExportMaterialAsync && extension.postExportMaterialAsync(context, node, babylonMaterial));
+    }
+
+    public _extensionsPostExportMaterialAdditionalTextures(context: string, material: IMaterial, babylonMaterial: Material): BaseTexture[] {
+        let output: BaseTexture[] = [];
+
+        for (const name of _Exporter._ExtensionNames) {
+            var extension = this._extensions[name];
+
+            if (extension.postExportMaterialAdditionalTextures) {
+                output.push(...extension.postExportMaterialAdditionalTextures(context, material, babylonMaterial));
             }
         }
 
-        return null;
+        return output;
     }
 
-    public _extensionsPreExportTextureAsync(context: string, babylonTexture: Texture, mimeType: ImageMimeType): Nullable<Promise<BaseTexture>> {
-        return this._applyExtensions(babylonTexture, (extension) => extension.preExportTextureAsync && extension.preExportTextureAsync(context, babylonTexture, mimeType));
-    }
+    public _extensionsPostExportTextures(context: string, textureInfo: ITextureInfo, babylonTexture: BaseTexture): void {
+        for (const name of _Exporter._ExtensionNames) {
+            var extension = this._extensions[name];
 
-    public _extensionsPostExportMeshPrimitiveAsync(context: string, meshPrimitive: IMeshPrimitive, babylonSubMesh: SubMesh, binaryWriter: _BinaryWriter): Nullable<Promise<IMeshPrimitive>> {
-        return this._applyExtensions(meshPrimitive, (extension) => extension.postExportMeshPrimitiveAsync && extension.postExportMeshPrimitiveAsync(context, meshPrimitive, babylonSubMesh, binaryWriter));
-    }
-
-    public _extensionsPostExportNodeAsync(context: string, node: INode, babylonNode: Node): Nullable<Promise<INode>> {
-        return this._applyExtensions(node, (extension) => extension.postExportNodeAsync && extension.postExportNodeAsync(context, node, babylonNode));
+            if (extension.postExportTexture) {
+                extension.postExportTexture(context, textureInfo, babylonTexture);
+            }
+        }
     }
 
     private _forEachExtensions(action: (extension: IGLTFExporterExtensionV2) => void): void {
@@ -201,7 +225,34 @@ export class _Exporter {
     }
 
     private _extensionsOnExporting(): void {
-        this._forEachExtensions((extension) => extension.onExporting && extension.onExporting());
+        this._forEachExtensions((extension) => {
+            if (extension.wasUsed) {
+                if (this._glTF.extensionsUsed == null) {
+                    this._glTF.extensionsUsed = [];
+                }
+
+                if (this._glTF.extensionsUsed.indexOf(extension.name) === -1) {
+                    this._glTF.extensionsUsed.push(extension.name);
+                }
+
+                if (extension.required) {
+                    if (this._glTF.extensionsRequired == null) {
+                        this._glTF.extensionsRequired = [];
+                    }
+                    if (this._glTF.extensionsRequired.indexOf(extension.name) === -1) {
+                        this._glTF.extensionsRequired.push(extension.name);
+                    }
+                }
+
+                if (this._glTF.extensions == null) {
+                    this._glTF.extensions = {};
+                }
+
+                if (extension.onExporting) {
+                    extension.onExporting();
+                }
+            }
+        });
     }
 
     /**
@@ -243,6 +294,14 @@ export class _Exporter {
 
         this._glTFMaterialExporter = new _GLTFMaterialExporter(this);
         this._loadExtensions();
+    }
+
+    public dispose() {
+        for (var extensionKey in this._extensions) {
+            const extension = this._extensions[extensionKey];
+
+            extension.dispose();
+        }
     }
 
     /**
@@ -590,16 +649,8 @@ export class _Exporter {
             }
 
             for (let component of vertex.asArray()) {
-                switch (vertexAttributeKind){
-                    case VertexBuffer.MatricesIndicesKind:
-                    case VertexBuffer.MatricesIndicesExtraKind:
-                        binaryWriter.setUInt8(component, byteOffset);
-                        byteOffset += 1;
-                        break;
-                    default:
-                        binaryWriter.setFloat32(component, byteOffset);
-                        byteOffset += 4;
-                }
+                binaryWriter.setFloat32(component, byteOffset);
+                byteOffset += 4;
             }
         }
     }
@@ -612,7 +663,9 @@ export class _Exporter {
      * @param binaryWriter The buffer to write the binary data to
      * @param indices Used to specify the order of the vertex data
      */
-    public writeAttributeData(vertexBufferKind: string, meshAttributeArray: FloatArray, stride: number, binaryWriter: _BinaryWriter) {
+    public writeAttributeData(vertexBufferKind: string, meshAttributeArray: FloatArray, byteStride: number, binaryWriter: _BinaryWriter) {
+        const stride = byteStride / 4;
+        let vertexAttributes: number[][] = [];
         let index: number;
 
         switch (vertexBufferKind) {
@@ -623,9 +676,7 @@ export class _Exporter {
                     if (this._convertToRightHandedSystem) {
                         _GLTFUtilities._GetRightHandedPositionVector3FromRef(vertexData);
                     }
-                    for (let component of vertexData.asArray()){
-                        binaryWriter.setFloat32(component);
-                    }
+                    vertexAttributes.push(vertexData.asArray());
                 }
                 break;
             }
@@ -637,9 +688,7 @@ export class _Exporter {
                         _GLTFUtilities._GetRightHandedNormalVector3FromRef(vertexData);
                     }
                     vertexData.normalize();
-                    for (let component of vertexData.asArray()){
-                        binaryWriter.setFloat32(component);
-                    }
+                    vertexAttributes.push(vertexData.asArray());
                 }
                 break;
             }
@@ -651,9 +700,8 @@ export class _Exporter {
                         _GLTFUtilities._GetRightHandedVector4FromRef(vertexData);
                     }
                     _GLTFUtilities._NormalizeTangentFromRef(vertexData);
-                    for (let component of vertexData.asArray()){
-                        binaryWriter.setFloat32(component);
-                    }
+
+                    vertexAttributes.push(vertexData.asArray());
                 }
                 break;
             }
@@ -661,9 +709,7 @@ export class _Exporter {
                 for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
                     index = k * stride;
                     const vertexData = stride === 3 ? Vector3.FromArray(meshAttributeArray, index) : Vector4.FromArray(meshAttributeArray, index);
-                    for (let component of vertexData.asArray()){
-                        binaryWriter.setFloat32(component);
-                    }
+                    vertexAttributes.push(vertexData.asArray());
                 }
                 break;
             }
@@ -671,42 +717,21 @@ export class _Exporter {
             case VertexBuffer.UV2Kind: {
                 for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
                     index = k * stride;
-                    let vertexData = this._convertToRightHandedSystem ? [meshAttributeArray[index], meshAttributeArray[index + 1]] : [meshAttributeArray[index], meshAttributeArray[index + 1]];
-                    for (let component of vertexData){
-                        binaryWriter.setFloat32(component);
-                    }
-                }
-                break;
-            }
-            case VertexBuffer.MatricesIndicesKind: 
-            case VertexBuffer.MatricesIndicesExtraKind: {
-                for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
-                    index = k * stride;
-                    const vertexData = Vector4.FromArray(meshAttributeArray, index);
-                    for (let component of vertexData.asArray()){
-                        binaryWriter.setUInt8(component);
-                    }
-                }
-                break;
-            }
-            case VertexBuffer.MatricesWeightsKind:
-            case VertexBuffer.MatricesWeightsExtraKind: {
-                for (let k = 0, length = meshAttributeArray.length / stride; k < length; ++k) {
-                    index = k * stride;
-                    const vertexData = Vector4.FromArray(meshAttributeArray, index);
-                    for (let component of vertexData.asArray()){
-                        binaryWriter.setFloat32(component);
-                    }
+                    vertexAttributes.push(this._convertToRightHandedSystem ? [meshAttributeArray[index], meshAttributeArray[index + 1]] : [meshAttributeArray[index], meshAttributeArray[index + 1]]);
                 }
                 break;
             }
             default: {
                 Tools.Warn("Unsupported Vertex Buffer Type: " + vertexBufferKind);
+                vertexAttributes = [];
+            }
+        }
+        for (let vertexAttribute of vertexAttributes) {
+            for (let component of vertexAttribute) {
+                binaryWriter.setFloat32(component);
             }
         }
     }
-
-
 
     /**
      * Generates glTF json data
@@ -753,9 +778,6 @@ export class _Exporter {
         if (this._samplers && this._samplers.length) {
             this._glTF.samplers = this._samplers;
         }
-        if (this._skins && this._skins.length){
-            this._glTF.skins = this._skins;
-        }
         if (this._images && this._images.length) {
             if (!shouldUseGlb) {
                 this._glTF.images = this._images;
@@ -797,9 +819,10 @@ export class _Exporter {
     /**
      * Generates data for .gltf and .bin files based on the glTF prefix string
      * @param glTFPrefix Text to use when prefixing a glTF file
+     * @param dispose Dispose the exporter
      * @returns GLTFData with glTF file data
      */
-    public _generateGLTFAsync(glTFPrefix: string): Promise<GLTFData> {
+    public _generateGLTFAsync(glTFPrefix: string, dispose = true): Promise<GLTFData> {
         return this._generateBinaryAsync().then((binaryBuffer) => {
             this._extensionsOnExporting();
             const jsonText = this.generateJSON(false, glTFPrefix, true);
@@ -817,6 +840,10 @@ export class _Exporter {
                 for (let image in this._imageData) {
                     container.glTFFiles[image] = new Blob([this._imageData[image].data], { type: this._imageData[image].mimeType });
                 }
+            }
+
+            if (dispose) {
+                this.dispose();
             }
 
             return container;
@@ -851,12 +878,9 @@ export class _Exporter {
     }
 
     /**
-     * Generates a glb file from the json and binary data
-     * Returns an object with the glb file name as the key and data as the value
-     * @param glTFPrefix
-     * @returns object with glb filename as key and data as value
+     * @hidden
      */
-    public _generateGLBAsync(glTFPrefix: string): Promise<GLTFData> {
+    public _generateGLBAsync(glTFPrefix: string, dispose = true): Promise<GLTFData> {
         return this._generateBinaryAsync().then((binaryBuffer) => {
             this._extensionsOnExporting();
             const jsonText = this.generateJSON(true);
@@ -936,6 +960,10 @@ export class _Exporter {
 
             if (this._localEngine != null) {
                 this._localEngine.dispose();
+            }
+
+            if (dispose) {
+                this.dispose();
             }
 
             return container;
@@ -1477,6 +1505,9 @@ export class _Exporter {
                         }
                         else {
                             return promise.then((node) => {
+                                if (!node) {
+                                    return;
+                                }
                                 this._nodes.push(node);
                                 nodeIndex = this._nodes.length - 1;
                                 nodeMap[babylonNode.uniqueId] = nodeIndex;

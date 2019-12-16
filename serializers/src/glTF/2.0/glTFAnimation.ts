@@ -5,7 +5,6 @@ import { Vector3, Quaternion } from "babylonjs/Maths/math";
 import { Tools } from "babylonjs/Misc/tools";
 import { Animation } from "babylonjs/Animations/animation";
 import { TransformNode } from "babylonjs/Meshes/transformNode";
-//import { Mesh } from "babylonjs/Meshes/mesh";
 import { Scene } from "babylonjs/scene";
 
 import { _BinaryWriter } from "./glTFExporter";

@@ -1187,7 +1187,7 @@ export class _Exporter {
             // For each BabylonMesh, create bufferviews for each 'kind'
             for (const attribute of attributeData) {
                 const attributeKind = attribute.kind;
-                const accessorComponentType = attribute.accessorComponentType
+                const accessorComponentType = attribute.accessorComponentType;
                 if (bufferMesh.isVerticesDataPresent(attributeKind)) {
                     this.createBufferViewKind(attributeKind, accessorComponentType, babylonTransformNode, binaryWriter, VertexBuffer.DeduceStride(attributeKind));
                     attribute.bufferViewIndex = this._bufferViews.length - 1;
@@ -1377,13 +1377,13 @@ export class _Exporter {
                                     }
                                 }
 
-                                if (babylonNode instanceof Mesh){
+                                if (babylonNode instanceof Mesh) {
                                     let babylonMesh : Mesh = babylonNode;
-                                    if (babylonMesh.skeleton){
+                                    if (babylonMesh.skeleton) {
                                         glTFNode.skin = skinMap[babylonMesh.skeleton.uniqueId];
                                     }
 
-                                    if (babylonMesh.morphTargetManager){
+                                    if (babylonMesh.morphTargetManager) {
                                         /* do the same thing */
                                     }
                                 }
@@ -1430,7 +1430,7 @@ export class _Exporter {
                 let transformNode = bone.getTransformNode();
                 if (transformNode) {
                     let boneMatrix = bone.getInvertedAbsoluteTransform();
-                    if (this._convertToRightHandedSystem){
+                    if (this._convertToRightHandedSystem) {
                         boneMatrix.toggleModelMatrixHandInPlace();
                     }
                     inverseBindMatrices.push(boneMatrix);
@@ -1456,7 +1456,7 @@ export class _Exporter {
                 });
             });
         }
-        return promiseChain.then(() => { 
+        return promiseChain.then(() => {
             return skinMap;
         });
     }
@@ -1743,7 +1743,7 @@ export class _BinaryWriter {
         this._dataView.setFloat32(this._byteOffset, entry, true);
         this._byteOffset += 4;
     }
-    
+
     /**
      * Stores an UInt32 in the array buffer
      * @param entry

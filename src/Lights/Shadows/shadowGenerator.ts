@@ -10,8 +10,6 @@ import { Mesh } from "../../Meshes/mesh";
 
 import { IShadowLight } from "../../Lights/shadowLight";
 import { Light } from "../../Lights/light";
-
-import { Material } from "../../Materials/material";
 import { MaterialDefines } from "../../Materials/materialDefines";
 import { MaterialHelper } from "../../Materials/materialHelper";
 import { Effect } from "../../Materials/effect";
@@ -69,11 +67,6 @@ export interface IShadowGenerator {
      * @returns The render target texture if present otherwise, null
      */
     getShadowMap(): Nullable<RenderTargetTexture>;
-    /**
-     * Gets the RTT used during rendering (can be a blurred version of the shadow map or the shadow map itself).
-     * @returns The render target texture if the shadow map is present otherwise, null
-     */
-    getShadowMapForRendering(): Nullable<RenderTargetTexture>;
 
     /**
      * Determine wheter the shadow generator is ready or not (mainly all effects and related post processes needs to be ready).
@@ -115,7 +108,7 @@ export interface IShadowGenerator {
      * @param onCompiled Callback triggered at the and of the effects compilation
      * @param options Sets of optional options forcing the compilation with different modes
      */
-    forceCompilation(onCompiled?: (generator: ShadowGenerator) => void, options?: Partial<{ useInstances: boolean }>): void;
+    forceCompilation(onCompiled?: (generator: IShadowGenerator) => void, options?: Partial<{ useInstances: boolean }>): void;
 
     /**
      * Forces all the attached effect to compile to enable rendering only once ready vs. lazyly compiling effects.
@@ -936,12 +929,13 @@ export class ShadowGenerator implements IShadowGenerator {
         var index: number;
         let engine = this._scene.getEngine();
 
+        const colorWrite = engine.getColorWrite();
         if (depthOnlySubMeshes.length) {
             engine.setColorWrite(false);
             for (index = 0; index < depthOnlySubMeshes.length; index++) {
                 this._renderSubMeshForShadowMap(depthOnlySubMeshes.data[index]);
             }
-            engine.setColorWrite(true);
+            engine.setColorWrite(colorWrite);
         }
 
         for (index = 0; index < opaqueSubMeshes.length; index++) {
@@ -983,7 +977,7 @@ export class ShadowGenerator implements IShadowGenerator {
         var hardwareInstancedRendering = (engine.getCaps().instancedArrays) && (batch.visibleInstances[subMesh._id] !== null) && (batch.visibleInstances[subMesh._id] !== undefined);
         if (this.isReady(subMesh, hardwareInstancedRendering)) {
             engine.enableEffect(this._effect);
-            mesh._bind(subMesh, this._effect, Material.TriangleFillMode);
+            mesh._bind(subMesh, this._effect, material.fillMode);
 
             this._effect.setFloat3("biasAndScale", this.bias, this.normalBias, this.depthScale);
 
@@ -1038,7 +1032,7 @@ export class ShadowGenerator implements IShadowGenerator {
             this.onBeforeShadowMapRenderObservable.notifyObservers(this._effect);
 
             // Draw
-            mesh._processRendering(subMesh, this._effect, Material.TriangleFillMode, batch, hardwareInstancedRendering,
+            mesh._processRendering(subMesh, this._effect, material.fillMode, batch, hardwareInstancedRendering,
                 (isInstance, world) => this._effect.setMatrix("world", world));
 
             if (this.forceBackFacesOnly) {
@@ -1074,7 +1068,7 @@ export class ShadowGenerator implements IShadowGenerator {
      * @param onCompiled Callback triggered at the and of the effects compilation
      * @param options Sets of optional options forcing the compilation with different modes
      */
-    public forceCompilation(onCompiled?: (generator: ShadowGenerator) => void, options?: Partial<{ useInstances: boolean }>): void {
+    public forceCompilation(onCompiled?: (generator: IShadowGenerator) => void, options?: Partial<{ useInstances: boolean }>): void {
         let localOptions = {
             useInstances: false,
             ...options

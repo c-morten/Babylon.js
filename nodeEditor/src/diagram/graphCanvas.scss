@@ -357,6 +357,10 @@
                         font-size: 18px;
                         font-weight: bold;
                         margin: 0 10px;
+
+                        &.fat {
+                            height: 54px;
+                        }
                     }
 
                     &.output-block {
@@ -382,7 +386,6 @@
                         grid-row: 3;
                         height: 140px;
                         width: 140px;
-                        margin-top: -115px;
                         overflow: hidden;
                         border-bottom-left-radius: 7px;
                         border: black 4px solid;
@@ -398,6 +401,10 @@
                                 display: none;
                             }
                         }
+                    }
+
+                    &.regular-texture-block {  
+                        margin-top: -115px;                        
                     }
 
                     &.remap-block {                    

@@ -390,11 +390,11 @@ export class InstancedMesh extends AbstractMesh {
      *
      * Returns the clone.
      */
-    public clone(name: string, newParent: Nullable<Node>= null, doNotCloneChildren?: boolean): Nullable<AbstractMesh> {
+    public clone(name: string, newParent: Nullable<Node>= null, doNotCloneChildren?: boolean): InstancedMesh {
         var result = this._sourceMesh.createInstance(name);
 
         // Deep copy
-        DeepCopier.DeepCopy(this, result, ["name", "subMeshes", "uniqueId"], []);
+        DeepCopier.DeepCopy(this, result, ["name", "subMeshes", "uniqueId", "parent"], []);
 
         // Bounding info
         this.refreshBoundingInfo();

@@ -274,20 +274,25 @@ declare module "babylonjs-node-editor/diagram/graphFrame" {
         private _onMove;
         private initResizing;
         private cleanUpResizing;
+        private updateMinHeightWithComments;
         private _onRightHandlePointerDown;
         private _onRightHandlePointerMove;
+        private _moveRightHandle;
         private _expandRight;
         private _onRightHandlePointerUp;
         private _onBottomHandlePointerDown;
         private _onBottomHandlePointerMove;
+        private _moveBottomHandle;
         private _expandBottom;
         private _onBottomHandlePointerUp;
         private _onLeftHandlePointerDown;
         private _onLeftHandlePointerMove;
+        private _moveLeftHandle;
         private _expandLeft;
         private _onLeftHandlePointerUp;
         private _onTopHandlePointerDown;
         private _onTopHandlePointerMove;
+        private _moveTopHandle;
         private _expandTop;
         private _onTopHandlePointerUp;
         dispose(): void;
@@ -1531,7 +1536,9 @@ declare module "babylonjs-node-editor/components/preview/previewAreaComponent" {
     export class PreviewAreaComponent extends React.Component<IPreviewAreaComponentProps, {
         isLoading: boolean;
     }> {
+        private _onIsLoadingChangedObserver;
         constructor(props: IPreviewAreaComponentProps);
+        componentWillUnmount(): void;
         changeBackFaceCulling(value: boolean): void;
         changeDepthPrePass(value: boolean): void;
         render(): JSX.Element;
@@ -1846,20 +1853,25 @@ declare module NODEEDITOR {
         private _onMove;
         private initResizing;
         private cleanUpResizing;
+        private updateMinHeightWithComments;
         private _onRightHandlePointerDown;
         private _onRightHandlePointerMove;
+        private _moveRightHandle;
         private _expandRight;
         private _onRightHandlePointerUp;
         private _onBottomHandlePointerDown;
         private _onBottomHandlePointerMove;
+        private _moveBottomHandle;
         private _expandBottom;
         private _onBottomHandlePointerUp;
         private _onLeftHandlePointerDown;
         private _onLeftHandlePointerMove;
+        private _moveLeftHandle;
         private _expandLeft;
         private _onLeftHandlePointerUp;
         private _onTopHandlePointerDown;
         private _onTopHandlePointerMove;
+        private _moveTopHandle;
         private _expandTop;
         private _onTopHandlePointerUp;
         dispose(): void;
@@ -2921,7 +2933,9 @@ declare module NODEEDITOR {
     export class PreviewAreaComponent extends React.Component<IPreviewAreaComponentProps, {
         isLoading: boolean;
     }> {
+        private _onIsLoadingChangedObserver;
         constructor(props: IPreviewAreaComponentProps);
+        componentWillUnmount(): void;
         changeBackFaceCulling(value: boolean): void;
         changeDepthPrePass(value: boolean): void;
         render(): JSX.Element;

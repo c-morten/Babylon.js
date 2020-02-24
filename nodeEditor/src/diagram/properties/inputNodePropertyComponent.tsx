@@ -33,7 +33,10 @@ export class InputPropertyTabComponent extends React.Component<IPropertyComponen
 
     componentDidMount() {        
         let inputBlock = this.props.block as InputBlock;
-        this.onValueChangedObserver = inputBlock.onValueChangedObservable.add(() => this.forceUpdate());
+        this.onValueChangedObserver = inputBlock.onValueChangedObservable.add(() => {
+            this.forceUpdate()
+            this.props.globalState.onUpdateRequiredObservable.notifyObservers();
+        });
     }
 
     componentWillUnmount() {
@@ -52,9 +55,7 @@ export class InputPropertyTabComponent extends React.Component<IPropertyComponen
                 let cantDisplaySlider = (isNaN(inputBlock.min) || isNaN(inputBlock.max) || inputBlock.min === inputBlock.max);            
                 return (
                     <>
-                        <CheckBoxLineComponent label="Is boolean" target={inputBlock} propertyName="isBoolean" onValueChanged={() => {
-                            this.forceUpdate();
-                        }}/>
+                        <CheckBoxLineComponent label="Is boolean" target={inputBlock} propertyName="isBoolean" />
                         {
                             inputBlock.isBoolean &&
                             <CheckBoxLineComponent label="Value" isSelected={() => {
@@ -65,20 +66,15 @@ export class InputPropertyTabComponent extends React.Component<IPropertyComponen
                                     this.props.globalState.onRebuildRequiredObservable.notifyObservers();    
                                 }
                                 this.props.globalState.onUpdateRequiredObservable.notifyObservers();
-                                this.forceUpdate();
                             }}/>
                         }
                         {
                             !inputBlock.isBoolean &&
-                            <FloatLineComponent globalState={this.props.globalState} label="Min" target={inputBlock} propertyName="min" onChange={() => {
-                                this.forceUpdate();
-                            }}></FloatLineComponent>
+                            <FloatLineComponent globalState={this.props.globalState} label="Min" target={inputBlock} propertyName="min" onChange={() => this.forceUpdate()}></FloatLineComponent>
                         }
                         {
                             !inputBlock.isBoolean &&
-                            <FloatLineComponent globalState={this.props.globalState} label="Max" target={inputBlock} propertyName="max" onChange={() => {
-                                    this.forceUpdate();
-                                }}></FloatLineComponent>      
+                            <FloatLineComponent globalState={this.props.globalState} label="Max" target={inputBlock} propertyName="max" onChange={() => this.forceUpdate()}></FloatLineComponent>      
                         }
                         {
                             !inputBlock.isBoolean && cantDisplaySlider &&
@@ -86,12 +82,10 @@ export class InputPropertyTabComponent extends React.Component<IPropertyComponen
                         }        
                         {
                             !inputBlock.isBoolean && !cantDisplaySlider &&
-                            <SliderLineComponent label="Value" target={inputBlock} propertyName="value" step={(inputBlock.max - inputBlock.min) / 100.0} minimum={inputBlock.min} maximum={inputBlock.max} onChange={() => {
+                            <SliderLineComponent label="Value" target={inputBlock} propertyName="value" step={Math.abs(inputBlock.max - inputBlock.min) / 100.0} minimum={Math.min(inputBlock.min, inputBlock.max)} maximum={inputBlock.max} onChange={() => {
                                 if (inputBlock.isConstant) {
                                     this.props.globalState.onRebuildRequiredObservable.notifyObservers();    
                                 }
-
-                                this.props.globalState.onUpdateRequiredObservable.notifyObservers();
                             }}/>
                         }
                     </>

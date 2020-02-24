@@ -436,7 +436,7 @@ void main(void) {
         #if defined(LODINREFLECTIONALPHA) && !defined(REFLECTIONMAP_SKYBOX)
             float reflectionLOD = getLodFromAlphaG(vReflectionMicrosurfaceInfos.x, alphaG, NdotVUnclamped);
         #elif defined(LINEARSPECULARREFLECTION)
-            float refractionLOD = getLinearLodFromRoughness(vReflectionMicrosurfaceInfos.x, roughness);
+            float reflectionLOD = getLinearLodFromRoughness(vReflectionMicrosurfaceInfos.x, roughness);
         #else
             float reflectionLOD = getLodFromAlphaG(vReflectionMicrosurfaceInfos.x, alphaG);
         #endif
@@ -935,10 +935,10 @@ void main(void) {
 
             #ifdef REFLECTION
                 environmentIrradiance *= absorption;
-            #endif
 
-            #ifdef SHEEN
-                sheenEnvironmentReflectance *= absorption;
+                #ifdef SHEEN
+                    sheenEnvironmentReflectance *= absorption;
+                #endif
             #endif
 
             specularEnvironmentReflectance *= absorption;
@@ -952,10 +952,10 @@ void main(void) {
 
         #ifdef REFLECTION
             environmentIrradiance *= conservationFactor;
-        #endif
 
-        #ifdef SHEEN
-            sheenEnvironmentReflectance *= conservationFactor;
+            #ifdef SHEEN
+                sheenEnvironmentReflectance *= conservationFactor;
+            #endif
         #endif
 
         specularEnvironmentReflectance *= conservationFactor;
